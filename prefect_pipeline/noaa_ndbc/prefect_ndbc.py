@@ -8,8 +8,16 @@ from bs4 import BeautifulSoup
 from prefect import task, Flow
 from typing import List, Dict, IO, Tuple
 
-from prefect_pipeline.noaa_ndbc.models import NDBCStation, NDBCSourceStation, SourceStationConversion
-from prefect_pipeline.noaa_ndbc.process_historical_data import process_and_write_files, group_files, extract_filename_info
+from prefect_pipeline.noaa_ndbc.models import (
+    NDBCStation,
+    NDBCSourceStation,
+    SourceStationConversion
+)
+from prefect_pipeline.noaa_ndbc.process_historical_data import (
+    process_and_write_files,
+    group_files,
+    extract_filename_info
+)
 
 FEED_DIR = '/Users/moriah/src/harmony/weather-pipeline/prefect_pipeline/output/feed/noaa_ndbc'
 TMP_DIR =  '/Users/moriah/src/harmony/weather-pipeline/prefect_pipeline/output/tmp/noaa_ndbc'
@@ -63,7 +71,7 @@ def fetch_station_metadata():
     return station_metadata['stations']['station']
 
 
-@task(name='Fetch List of historical data urls')#, max_retries=3, retry_delay=timedelta(seconds=10))
+@task(name='Fetch List of historical data urls')
 def get_historical_stdmet_urls() -> Dict[Tuple[str, str], str]:
     # The NOAA historical data is a vastly unorganized, and sharded by station id
     # and year. The historical_stdmet_url has a list of these files in html.
@@ -80,14 +88,18 @@ def get_historical_stdmet_urls() -> Dict[Tuple[str, str], str]:
     return historical_urls
 
 
-@task(name='Fetch historical data')#, max_retries=3, retry_delay=timedelta(seconds=10))
-def get_historical_data_by_station(output_dir: str, historical_urls: Dict[str, str], full_pull=False) -> Dict[str, str]:
+@task(name='Fetch historical data')
+def get_historical_data_by_station(
+    output_dir: str,
+    historical_urls: Dict[str, str],
+    full_pull=False
+) -> Dict[str, str]:
     # There are thousands of historical files ranging in size from 10kb
     # to 100mb. the structure for file naming is the only way to know what
     # station it belongs to {station_id}h{year}.txt.gz
     logger = prefect.context.get("logger")
     historical_files = {}
-    for filename, url in list(historical_urls.items())[:5]: #TODO: remove this so we get all files.
+    for filename, url in list(historical_urls.items()):
         logger.info(f'Processing historical file: {filename}, {url}')
         historical_file = os.path.join(output_dir, filename)
         if full_pull:
@@ -101,7 +113,20 @@ def get_historical_data_by_station(output_dir: str, historical_urls: Dict[str, s
 @task(name='Fetch recent sdmet file urls')
 def get_recent_sdmet_urls() -> Dict[str,Dict[str,str]]:
     base_url = 'https://www.ndbc.noaa.gov/data/stdmet/%s'
-    months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+    ]
     output_urls = {}
     logger = prefect.context.get("logger")
     for i, month in enumerate(months):
@@ -111,16 +136,30 @@ def get_recent_sdmet_urls() -> Dict[str,Dict[str,str]]:
         for link in soup.find_all('a', attrs={'href': re.compile('^.*\.txt(\.gz)')}):
             station_link = link.get('href')
             month_number = str(i + 1)
-            station_id, year = extract_filename_info(station_link, logger, separator=month_number)
-            output_urls[url + '/' + station_link] = {'station_id': station_id, 'year': year, 'month': month_number}
+            station_id, year = extract_filename_info(
+                station_link,
+                logger,
+                separator=month_number
+            )
+            output_urls[url + '/' + station_link] = {
+                'station_id': station_id,
+                'year': year,
+                'month': month_number,
+            }
     return output_urls
 
 
 @task(name='Fetch recent sdmet file data')
-def get_recent_sdmet_data(output_dir: str, recent_urls: Dict[str,Dict[str,str]], full_pull=False) -> Dict[str,Dict[str,str]]:
+def get_recent_sdmet_data(
+    output_dir: str,
+    recent_urls: Dict[str,Dict[str,str]],
+    full_pull=False
+) -> Dict[str,Dict[str,str]]:
     recent_files = {}
-    for url, file_info in list(recent_urls.items()): #TODO: remove this so we get all files.
-        station_id, year, month = file_info['station_id'], file_info['year'], file_info['month']
+    for url, file_info in list(recent_urls.items()):
+        station_id = file_info['station_id']
+        year = file_info['year']
+        month = file_info['month']
         filename = f'{station_id}_{year}_{month}{FILE_SUFFIX}'
         recent_file = os.path.join(output_dir, filename)
         if full_pull:
@@ -141,21 +180,46 @@ def process_active_stations(active_stations) -> Dict[str, NDBCStation]:
 
 
 @task(name='Process Historical Station data')
-def process_historical_data(historical_files: Dict[Tuple[str, str], str], processed_station_lookup: Dict[str, NDBCStation], output_dir: str):
-    station_files_by_year = group_files(historical_files, processed_station_lookup)
+def process_historical_data(
+    historical_files: Dict[Tuple[str, str], str],
+    processed_station_lookup: Dict[str, NDBCStation],
+    output_dir: str
+):
+    station_files_by_year = group_files(
+        historical_files,
+        processed_station_lookup,
+    )
     logger = prefect.context.get("logger")
     logger.info(f'Found years urls: {station_files_by_year}')
-    output_year_files = process_anwd_write_files(station_files_by_year, processed_station_lookup, output_dir, logger)
+    output_year_files = process_anwd_write_files(
+        station_files_by_year,
+        processed_station_lookup,
+        output_dir,
+        logger,
+    )
     return output_year_files
 
 
 @task(name='Process Recent Station data')
-def process_recent_data(recent_files: Dict[str,Dict[str,str]], processed_station_lookup: Dict[str, NDBCStation], output_dir: str):
+def process_recent_data(
+    recent_files: Dict[str,Dict[str,str]],
+    processed_station_lookup: Dict[str, NDBCStation],
+    output_dir: str
+):
     logger = prefect.context.get("logger")
     logger.info(f'Found {len(recent_files)} recent files')
-    station_files_by_year = group_files(recent_files, processed_station_lookup, logger)
+    station_files_by_year = group_files(
+        recent_files,
+        processed_station_lookup,
+        logger,
+    )
     logger.info(f'Found years urls: {station_files_by_year}')
-    output_year_files = process_and_write_files(station_files_by_year, processed_station_lookup, output_dir, logger)
+    output_year_files = process_and_write_files(
+        station_files_by_year,
+        processed_station_lookup,
+        output_dir,
+        logger,
+    )
     return output_year_files
 
 
@@ -165,11 +229,25 @@ def main():
         processed_station_lookup = process_active_stations(active_stations)
 
         historical_urls = get_historical_stdmet_urls()
-        historical_files = get_historical_data_by_station(os.path.join(FEED_DIR, 'historical'), historical_urls)
+        historical_files = get_historical_data_by_station(
+            os.path.join(FEED_DIR, 'historical'),
+            historical_urls,
+        )
         recent_sdmet_urls = get_recent_sdmet_urls()
-        recent_sdmet_files = get_recent_sdmet_data(os.path.join(FEED_DIR, 'historical'), recent_sdmet_urls)
-        process_recent_data(recent_sdmet_files, processed_station_lookup, os.path.join(TMP_DIR, 'historical'))
-        process_historical_data(historical_files, processed_station_lookup, os.path.join(TMP_DIR, 'historical'))
+        recent_sdmet_files = get_recent_sdmet_data(
+            os.path.join(FEED_DIR, 'historical'),
+            recent_sdmet_urls,
+        )
+        process_recent_data(
+            recent_sdmet_files,
+            processed_station_lookup,
+            os.path.join(TMP_DIR, 'historical'),
+        )
+        process_historical_data(
+            historical_files,
+            processed_station_lookup,
+            os.path.join(TMP_DIR, 'historical'),
+        )
 
     flow.run()
 
