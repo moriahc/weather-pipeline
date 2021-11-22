@@ -164,12 +164,12 @@ def main():
         active_stations = fetch_station_list()
         processed_station_lookup = process_active_stations(active_stations)
 
-        # historical_urls = get_historical_stdmet_urls()
-        # historical_files = get_historical_data_by_station(os.path.join(FEED_DIR, 'historical'), historical_urls)
+        historical_urls = get_historical_stdmet_urls()
+        historical_files = get_historical_data_by_station(os.path.join(FEED_DIR, 'historical'), historical_urls)
         recent_sdmet_urls = get_recent_sdmet_urls()
         recent_sdmet_files = get_recent_sdmet_data(os.path.join(FEED_DIR, 'historical'), recent_sdmet_urls)
         process_recent_data(recent_sdmet_files, processed_station_lookup, os.path.join(TMP_DIR, 'historical'))
-        # process_historical_data(historical_files, processed_station_lookup, os.path.join(TMP_DIR, 'historical'))
+        process_historical_data(historical_files, processed_station_lookup, os.path.join(TMP_DIR, 'historical'))
 
     flow.run()
 
